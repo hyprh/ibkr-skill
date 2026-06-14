@@ -68,19 +68,30 @@ skills/ibkr/
     ├── check_env.py           # 环境自检
     ├── quote/
     │   ├── get_contract_details.py  # 解析合约（conId/交易所/交易时段）
+    │   ├── search_symbols.py        # 代码搜索/合约匹配（reqMatchingSymbols）
     │   ├── get_snapshot.py          # 行情快照（最新/开高低收/买卖盘）
+    │   ├── get_orderbook.py         # 买卖盘深度 L2（reqMktDepth）
     │   ├── get_kline.py             # 历史 K 线（OHLCV）
+    │   ├── get_intraday.py          # 分时（当日 1 分钟 OHLCV）
+    │   ├── get_ticks.py             # 逐笔成交（reqHistoricalTicks）
+    │   ├── get_trading_hours.py     # 交易时段/交易日历（是否开市）
     │   ├── get_option_chain.py      # 期权链/到期日/行权价（reqSecDefOptParams）
-    │   └── get_scanner.py           # 市场扫描器/选股（reqScannerData）
-    └── trade/
-        ├── get_accounts.py          # 账户列表（标注 paper/live）
-        ├── get_portfolio.py         # 持仓 + 资金 + 盈亏（reqPnL）
-        ├── get_pnl.py               # 盈亏 PnL（账户级 + 逐持仓）
-        ├── place_order.py           # 下单（--preview whatIf 预览；实盘硬约束 --confirmed）
-        ├── modify_order.py          # 改单（改价/止损价/数量；仅本 client 单；实盘 --confirmed）
-        ├── cancel_order.py          # 撤单（单笔 / --all 按账户 / --all-accounts；实盘 --confirmed）
-        ├── get_orders.py            # 当前挂单（reqAllOpenOrders）
-        └── get_executions.py        # 成交记录
+    │   ├── get_scanner.py           # 市场扫描器/选股（reqScannerData）
+    │   └── get_fundamentals.py      # 基本面/公司信息（reqFundamentalData）
+    ├── trade/
+    │   ├── get_accounts.py          # 账户列表（标注 paper/live）
+    │   ├── get_portfolio.py         # 持仓 + 资金 + 盈亏（reqPnL）
+    │   ├── get_all_portfolios.py    # 全账户持仓与资金
+    │   ├── get_pnl.py               # 盈亏 PnL（账户级 + 逐持仓）
+    │   ├── place_order.py           # 下单（--preview whatIf 预览；实盘硬约束 --confirmed）
+    │   ├── modify_order.py          # 改单（改价/止损价/数量；仅本 client 单；实盘 --confirmed）
+    │   ├── cancel_order.py          # 撤单（单笔 / --all 按账户 / --all-accounts；实盘 --confirmed）
+    │   ├── get_orders.py            # 当前挂单（reqAllOpenOrders）
+    │   ├── get_history_orders.py    # 历史/已完成订单（reqCompletedOrders）
+    │   └── get_executions.py        # 成交记录
+    └── subscribe/
+        ├── stream_quote.py          # 实时报价推送（持续 N 秒）
+        └── stream_bars.py           # 实时 5 秒 K 线推送
 ```
 
 ### 脚本路径查找规则
@@ -136,6 +147,44 @@ python skills/ibkr/scripts/quote/get_scanner.py --scan MOST_ACTIVE --location ST
 - `--location`: STK.US.MAJOR / STK.US / STK.HK …；`--instrument`: STK / STOCK.HK …
 - 无对应行情权限时会返回近似结果并提示（错误 492）。
 
+### 代码搜索
+当用户不知道确切代码/交易所，问 "XX 的代码是什么"、"搜一下" 时：
+```bash
+python skills/ibkr/scripts/quote/search_symbols.py apple [--json]
+```
+
+### 买卖盘深度（L2）
+当用户问 "买卖盘"、"摆盘"、"盘口"、"depth" 时：
+```bash
+python skills/ibkr/scripts/quote/get_orderbook.py AAPL --num 10 [--json]
+```
+- 需对应市场的 L2 行情订阅；无订阅/休市时返回空并提示。
+
+### 分时
+当用户问 "分时"、"今天走势"、"intraday" 时：
+```bash
+python skills/ibkr/scripts/quote/get_intraday.py AAPL [--bar 5m] [--rth] [--tail 30] [--json]
+```
+
+### 逐笔成交
+当用户问 "逐笔"、"成交明细"、"tick" 时：
+```bash
+python skills/ibkr/scripts/quote/get_ticks.py AAPL --num 50 [--what TRADES|BID_ASK|MIDPOINT] [--json]
+```
+
+### 交易时段 / 是否开市
+当用户问 "开市了吗"、"交易时间"、"几点开盘" 时：
+```bash
+python skills/ibkr/scripts/quote/get_trading_hours.py AAPL [--days 5] [--json]
+```
+
+### 基本面 / 公司信息
+当用户问 "基本面"、"公司信息"、"市值/PE"、"财报" 时：
+```bash
+python skills/ibkr/scripts/quote/get_fundamentals.py AAPL [--report snapshot|finsummary|ratios] [--raw] [--json]
+```
+- 基本面数据通常需相应订阅；无订阅会优雅提示。
+
 ---
 
 ## 交易命令
@@ -149,6 +198,8 @@ python skills/ibkr/scripts/trade/get_accounts.py [--json]
 当用户问 "持仓"、"资金"、"我的股票"、"账户净值" 时：
 ```bash
 python skills/ibkr/scripts/trade/get_portfolio.py [--acc-id DUN512173] [--json]
+# 一次看所有账户（多账户/子账户）
+python skills/ibkr/scripts/trade/get_all_portfolios.py [--json]
 ```
 
 ### 下单
@@ -197,6 +248,12 @@ python skills/ibkr/scripts/trade/cancel_order.py --all --all-accounts          #
 python skills/ibkr/scripts/trade/get_orders.py [--acc-id DUN512173] [--json]
 ```
 
+### 历史/已完成订单
+当用户问 "历史订单"、"过去的委托"、"成交了哪些单" 时：
+```bash
+python skills/ibkr/scripts/trade/get_history_orders.py [--acc-id DUN512173] [--status Filled] [--json]
+```
+
 ### 盈亏 PnL
 当用户问 "盈亏"、"赚了多少"、"PnL"、"浮盈" 时：
 ```bash
@@ -208,6 +265,22 @@ python skills/ibkr/scripts/trade/get_pnl.py [--positions] [--acc-id DUN512173] [
 ```bash
 python skills/ibkr/scripts/trade/get_executions.py [--json]
 ```
+
+---
+
+## 实时推送命令
+
+### 实时报价推送
+当用户需要"持续看价"、"盯盘"、"实时报价" 时：
+```bash
+python skills/ibkr/scripts/subscribe/stream_quote.py AAPL [MSFT] --duration 30 --interval 2 [--json]
+```
+
+### 实时 5 秒 K 线推送
+```bash
+python skills/ibkr/scripts/subscribe/stream_bars.py AAPL --duration 60 [--what TRADES] [--json]
+```
+- 实时 bar 需实时行情订阅；无订阅/休市时收不到 bar（会提示）。`--json` 输出 NDJSON（每条一行）。
 
 ---
 
