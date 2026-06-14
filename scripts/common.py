@@ -399,10 +399,22 @@ def qualify(ib, contract, output_json=False):
         results = ib.qualifyContracts(contract)
     except Exception as e:
         _fail(f"合约解析失败: {e}", output_json)
+    # 过滤掉 None / 无 conId 的结果（某些 ib_async 版本会塞 None 进来）
+    results = [r for r in (results or []) if r is not None and getattr(r, "conId", 0)]
     if not results:
         _fail(f"无法解析合约: {contract_repr(contract)}（symbol/secType/exchange/currency 是否正确？）",
               output_json)
     return results[0]
+
+
+def try_qualify(ib, contract):
+    """非退出版 qualify：成功返回 qualify 后的合约，失败返回 None（不报错退出）。"""
+    try:
+        results = ib.qualifyContracts(contract)
+    except Exception:
+        return None
+    results = [r for r in (results or []) if r is not None and getattr(r, "conId", 0)]
+    return results[0] if results else None
 
 
 def contract_repr(c):

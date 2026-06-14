@@ -84,6 +84,8 @@ skills/ibkr/
     │   ├── get_all_portfolios.py    # 全账户持仓与资金
     │   ├── get_pnl.py               # 盈亏 PnL（账户级 + 逐持仓）
     │   ├── place_order.py           # 下单（--preview whatIf 预览；实盘硬约束 --confirmed）
+    │   ├── plan_option.py           # 期权方向交易规划器（只读；算硬止损/张数/盈亏平衡）
+    │   ├── place_spread.py          # 垂直价差下单（多腿 combo；定义风险；实盘 --confirmed）
     │   ├── modify_order.py          # 改单（改价/止损价/数量；仅本 client 单；实盘 --confirmed）
     │   ├── cancel_order.py          # 撤单（单笔 / --all 按账户 / --all-accounts；实盘 --confirmed）
     │   ├── get_orders.py            # 当前挂单（reqAllOpenOrders）
@@ -265,6 +267,37 @@ python skills/ibkr/scripts/trade/get_pnl.py [--positions] [--acc-id DUN512173] [
 ```bash
 python skills/ibkr/scripts/trade/get_executions.py [--json]
 ```
+
+---
+
+## 期权交易（定义风险 / 硬止损）
+
+> 适用场景:想用期权"在开仓前锁死最大亏损"(跳空也打不穿),尤其交易事件/政策风险大的标的(如 BABA)。
+> 期权数据/下单同样受行情订阅与流动性影响;流动性差的标的(价差大)慎用。
+
+### 期权规划器（只读,不下单）
+当用户问 "买期权要花多少"、"硬止损多少"、"该买哪张 call/put" 时:
+```bash
+python skills/ibkr/scripts/trade/plan_option.py --code BABA --right CALL --max-loss 300
+python skills/ibkr/scripts/trade/plan_option.py --code QQQ --right CALL --expiry 20260717 --strike 600 --max-loss 500 [--json]
+```
+- 自动选到期日(--dte,默认35)/行权价(--moneyness ATM/ITM/OTM 或 --strike),按 --max-loss 或 --risk-pct 定张数;
+- 输出:**权利金=单张最大亏损、总硬止损、盈亏平衡点、名义敞口**。**不下单**,纯规划。
+
+### 垂直价差下单（多腿 combo,借方,定义风险）
+当用户要"做价差"、"定义风险的方向单" 时:
+```bash
+# 牛市看涨价差:买低行权 call + 卖高行权 call
+python skills/ibkr/scripts/trade/place_spread.py --code BABA --type BULL_CALL --expiry 20260717 \
+    --buy-strike 115 --sell-strike 120 --price 2.00 --quantity 1 [--preview] [--confirmed]
+# 熊市看跌价差:买高行权 put + 卖低行权 put
+python skills/ibkr/scripts/trade/place_spread.py --code BABA --type BEAR_PUT --expiry 20260717 \
+    --buy-strike 113 --sell-strike 108 --price 2.20 --quantity 1
+```
+- `--type`: BULL_CALL / BEAR_PUT(均为借方,**最大亏损=净支出×100×份数=硬止损**);
+- `--preview`: whatIf 预览(保证金/佣金),不下单;**实盘需 `--confirmed`**;
+- 仅支持单标的、同到期日、1:1 两腿借方垂直价差。
+- ⚠️ 行权价必须是**该到期日实际挂牌**的(plan_option 会自动就近选,价差需自己给对;不确定先用 get_option_chain 查)。
 
 ---
 
