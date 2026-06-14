@@ -32,7 +32,7 @@ import os as _os
 sys.path.insert(0, _os.path.normpath(_os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "..")))
 from common import (
     connect, safe_disconnect, parse_contract, qualify, resolve_account,
-    is_live_account, is_live_env, require_live_confirmation, contract_repr,
+    is_live_env, require_live_confirmation, contract_repr,
     attach_error_collector, audit_log, json_dumps, _fail, _num,
     WORKING_STATUSES, REJECTED_STATUSES,
     LimitOrder, MarketOrder, StopOrder,
@@ -98,7 +98,7 @@ def place_order(code, side, quantity, price=None, order_type="LMT", aux_price=No
         qc = qualify(ib, contract, output_json)
 
         summary = {
-            "account": account, "env": "live" if is_live_account(account) else "paper",
+            "account": account, "env": "live" if is_live_env(account) else "paper",
             "contract": contract_repr(qc), "side": side.upper(), "quantity": quantity,
             "order_type": order_type.upper(), "price": price, "aux_price": aux_price, "tif": tif.upper(),
         }
@@ -146,7 +146,7 @@ def place_order(code, side, quantity, price=None, order_type="LMT", aux_price=No
         remaining = _num(ost.remaining)
 
         # 拒单判定：任何 blocking 错误 => 拒绝；或状态进入拒绝态；解耦了状态白名单
-        blocking = [e for e in errors if e["code"] in (321, 201, 10148)]
+        blocking = [e for e in errors if e["code"] in (321, 201)]
         rejected = bool(blocking) or status in REJECTED_STATUSES
         if rejected:
             hint = "; ".join(e.get("hint") or e["msg"] for e in blocking) or f"状态 {status}"

@@ -52,16 +52,18 @@ def get_option_chain(spec, expiry=None, around=None, num=20, output_json=False):
             "strike_max": strikes[-1] if strikes else None,
         }
 
-        if expiry:
-            if expiry not in chain.expirations:
-                _fail(f"到期日 {expiry} 不在期权链中。可用: {expirations[:12]}{' ...' if len(expirations) > 12 else ''}",
-                      output_json)
-            shown = strikes
-            if around is not None:
-                shown = sorted(strikes, key=lambda s: abs(s - around))[:num]
-                shown = sorted(shown)
-            result["expiry"] = expiry
+        if expiry and expiry not in chain.expirations:
+            _fail(f"到期日 {expiry} 不在期权链中。可用: {expirations[:12]}{' ...' if len(expirations) > 12 else ''}",
+                  output_json)
+
+        # --around 可独立于 --expiry 使用：只要给了就取 ATM 附近的行权价
+        if around is not None:
+            shown = sorted(sorted(strikes, key=lambda s: abs(s - around))[:num])
             result["strikes"] = shown
+        elif expiry:
+            result["strikes"] = strikes
+        if expiry:
+            result["expiry"] = expiry
 
         print_result(result, output_json, _print_text)
     except SystemExit:
@@ -80,7 +82,8 @@ def _print_text(result):
           f"{', '.join(result['expirations'][:16])}{' ...' if result['expiration_count'] > 16 else ''}")
     print(f"  行权价: 共 {result['strike_count']} 档，范围 {result['strike_min']} ~ {result['strike_max']}")
     if "strikes" in result:
-        print(f"\n  到期日 {result['expiry']} 的行权价 ({len(result['strikes'])}):")
+        label = f"到期日 {result['expiry']} 的行权价" if result.get("expiry") else "选取的行权价"
+        print(f"\n  {label} ({len(result['strikes'])}):")
         print("   ", ", ".join(str(s) for s in result["strikes"]))
     print("=" * 72)
 

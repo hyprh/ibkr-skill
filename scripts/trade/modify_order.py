@@ -98,7 +98,7 @@ def modify_order(order_id, price=None, quantity=None, aux_price=None,
         result = {"order_id": order_id, "contract": contract_repr(target.contract),
                   "order_type": otype, "old": old, "new": new, "status": status}
 
-        blocking = [e for e in errors if e["code"] in (321, 201, 10148)]
+        blocking = [e for e in errors if e["code"] in (321, 201)]
         if blocking or status in REJECTED_STATUSES:
             hint = "; ".join(e.get("hint") or e["msg"] for e in blocking) or f"状态 {status}"
             audit_log({"action": "modify_order", "result": "rejected", **result, "error": hint})
