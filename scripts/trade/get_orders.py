@@ -21,14 +21,14 @@ from common import (
 def get_orders(acc_id=None, output_json=False):
     ib = None
     try:
-        ib = connect(readonly=False)
+        ib = connect(readonly=True)  # 纯查询；reqAllOpenOrders 在只读连接下同样可用
         account = resolve_account(ib, acc_id)
         ib.reqAllOpenOrders()  # 阻塞调用，返回时 openTrades() 已就绪（含所有 client/TWS 手工单）
 
         records = []
         for t in ib.openTrades():
             o, c, st = t.order, t.contract, t.orderStatus
-            if account and o.account and o.account != account:
+            if account and o.account != account:
                 continue
             records.append({
                 "order_id": o.orderId,
@@ -70,7 +70,7 @@ def _print_text(result):
 
 if __name__ == "__main__":
     p = argparse.ArgumentParser(description="查询当前未完成订单")
-    p.add_argument("--acc-id", default=None, help="账户 ID（默认首个账户）")
+    p.add_argument("--acc-id", default=None, help="账户 ID（多账户时若未指定且有多个账户会报错）")
     p.add_argument("--json", action="store_true", dest="output_json", help="输出 JSON 格式")
     args = p.parse_args()
     get_orders(args.acc_id, args.output_json)

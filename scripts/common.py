@@ -51,9 +51,9 @@ class IBConfig:
     |------|------|--------|
     | IB_GATEWAY_HOST     | Gateway/TWS 主机          | 127.0.0.1 |
     | IB_GATEWAY_PORT     | API 端口                  | 4002 (paper Gateway) |
-    | IB_CLIENT_ID        | 固定 clientId（默认随机） | （随机） |
+    | IB_CLIENT_ID        | 固定 clientId             | 2011 (DEFAULT_CLIENT_ID) |
     | IB_MARKET_DATA_TYPE | 行情类型 1实时/2冻结/3延迟/4延迟冻结 | 3 (延迟) |
-    | IB_ACCOUNT          | 默认账户 ID               | （首个 managed account） |
+    | IB_ACCOUNT          | 默认账户 ID               | （唯一账户；多账户须显式指定） |
     | IB_DEFAULT_EXCHANGE | 默认交易所                | SMART |
     | IB_DEFAULT_CURRENCY | 默认货币                  | USD |
     | IB_CONNECT_TIMEOUT  | 连接超时（秒）            | 15 |
@@ -122,8 +122,9 @@ def _check_port_reachable(host, port):
 
 
 def ensure_ib_api():
-    """环境检查（带缓存）：ib_async 是否安装 + 版本 + Gateway 端口连通性"""
-    cfg = get_config()
+    """导入期环境检查：仅校验 ib_async 是否安装 + 版本（带缓存）。
+    Gateway 端口连通性不在此处检查，改由 connect() 在真正连接时检查——
+    这样 `python xxx.py --help` 等无需 Gateway 即可运行，且避免重复探测。"""
     if _env_check_is_cached():
         return True
     try:
@@ -136,7 +137,6 @@ def ensure_ib_api():
     except ImportError:
         print("[ERROR] 未安装 ib_async，请运行: pip install ib_async")
         sys.exit(1)
-    _check_port_reachable(cfg.host, cfg.port)
     _env_check_mark_ok()
     return True
 
@@ -379,7 +379,7 @@ def _build_contract(symbol, sectype, exchange, currency, extra=""):
             c.lastTradeDateOrContractMonth = extra  # YYYYMM 或 YYYYMMDD
         return c
     if sectype == "OPT":
-        # 期权建议用 resolve_option.py；这里仅支持完整 extra=EXPIRY,STRIKE,RIGHT
+        # 期权建议用 get_option_chain.py / get_contract_details.py 确认；这里仅支持完整 extra=EXPIRY,STRIKE,RIGHT
         c = Contract(secType="OPT", symbol=symbol, exchange=exchange or "SMART", currency=currency)
         if extra:
             f = extra.split(",")
@@ -505,9 +505,9 @@ def _price(v, default=None):
     return n
 
 
-def safe_float(v, default=0.0):
-    n = _num(v)
-    return default if n is None else n
+def dash(v, placeholder="—"):
+    """文本展示用：None -> 占位符（统一各脚本的空值显示，替代各处重复的 _f/_fmt）。"""
+    return placeholder if v is None else v
 
 
 def _sanitize_json(obj):
@@ -537,7 +537,7 @@ _AUDIT_MAX_BYTES = 5 * 1024 * 1024  # 5MB，超过则轮转一次
 
 def audit_log(entry):
     """追加交易审计到 ~/.ibkr_trade_audit.jsonl。
-    - 权限 0o600（仅本人可读，POSIX 生效）
+    - 权限 0o600（仅 POSIX 生效；Windows 上 mode 基本被忽略，依赖用户主目录默认 ACL，不是全局可读）
     - 超过 5MB 轮转为 .1
     - 写失败时打印 stderr 警告（不静默吞掉，否则交易无记录却无人知）
     """

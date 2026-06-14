@@ -17,7 +17,8 @@ import datetime
 import os as _os
 sys.path.insert(0, _os.path.normpath(_os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "..")))
 from common import (
-    connect, safe_disconnect, parse_contract, print_result, _fail,
+    connect, safe_disconnect, parse_contract, print_result,
+    attach_error_collector, _fail,
 )
 
 
@@ -48,7 +49,9 @@ def _is_open_now(liquid, tz_id):
                 continue
             try:
                 o = datetime.datetime.strptime(s["open"], "%Y%m%d:%H%M").replace(tzinfo=ZoneInfo(tz_id))
-                c = datetime.datetime.strptime(s["close"], "%Y%m%d:%H%M").replace(tzinfo=ZoneInfo(tz_id))
+                # close 可能缺日期(旧格式 'HHMM')，则沿用 open 的日期
+                close_tok = s["close"] if ":" in s["close"] else f"{s['open'].split(':')[0]}:{s['close']}"
+                c = datetime.datetime.strptime(close_tok, "%Y%m%d:%H%M").replace(tzinfo=ZoneInfo(tz_id))
             except ValueError:
                 continue
             if o <= now <= c:
@@ -62,9 +65,13 @@ def get_trading_hours(spec, days=3, output_json=False):
     ib = None
     try:
         ib = connect(readonly=True)
+        errors = attach_error_collector(ib)
         details = ib.reqContractDetails(parse_contract(spec))
         if not details:
-            _fail(f"未找到合约: {spec}", output_json)
+            msg = f"未找到合约: {spec}"
+            if errors:
+                msg += "（" + "; ".join(e.get("hint") or e["msg"] for e in errors) + "）"
+            _fail(msg, output_json)
         d = details[0]
         c = d.contract
         liquid = _parse_sessions(d.liquidHours)[:days]
@@ -86,7 +93,9 @@ def get_trading_hours(spec, days=3, output_json=False):
 def _fmt_session(s):
     if s["closed"]:
         return f"{s['date']}  休市"
-    return f"{s['open'].replace(':', ' ')} - {s['close'].split(':')[1]}"
+    # close 可能是 'YYYYMMDD:HHMM'（现行）或 'HHMM'（旧格式）；取最后一段即 HHMM，避免 IndexError
+    hhmm = s["close"].split(":")[-1]
+    return f"{s['open'].replace(':', ' ')} - {hhmm}"
 
 
 def _print_text(result):

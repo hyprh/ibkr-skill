@@ -27,6 +27,7 @@ from common import (
 
 def stream_bars(spec, duration=60, what="TRADES", rth=False, output_json=False):
     ib = None
+    bars = None
     try:
         ib = connect(readonly=True)
         errors = attach_error_collector(ib)
@@ -51,11 +52,7 @@ def stream_bars(spec, duration=60, what="TRADES", rth=False, output_json=False):
             print(f"实时 5 秒 K 线推送 {duration}s（{what.upper()}），Ctrl+C 停止")
             print("-" * 60)
         ib.sleep(duration)
-        try:
-            ib.cancelRealTimeBars(bars)
-        except Exception:
-            pass
-        if not bars and errors:
+        if not bars and errors and not output_json:
             print("  [提示] " + "; ".join(e.get("hint") or e["msg"] for e in errors))
     except KeyboardInterrupt:
         pass
@@ -64,6 +61,11 @@ def stream_bars(spec, duration=60, what="TRADES", rth=False, output_json=False):
     except Exception as e:
         _fail(str(e), output_json)
     finally:
+        if bars is not None:
+            try:
+                ib.cancelRealTimeBars(bars)
+            except Exception:
+                pass
         safe_disconnect(ib)
 
 

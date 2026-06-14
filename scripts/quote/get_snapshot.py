@@ -48,8 +48,7 @@ def get_snapshot(specs, output_json=False, mdt=None, timeout=6.0):
         safe_disconnect(ib)
 
 
-def _fmt(v):
-    return "—" if v is None else v
+from common import dash as _fmt  # 统一的 None->— 占位
 
 
 def _print_text(result):

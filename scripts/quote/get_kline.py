@@ -30,8 +30,7 @@ from common import (
 )
 
 
-def _f(v):
-    return "—" if v is None else v
+from common import dash as _f  # 统一的 None->— 占位
 
 # bar 周期 -> ib_async barSizeSetting
 _BAR_MAP = {

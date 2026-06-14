@@ -36,8 +36,10 @@ def get_intraday(spec, bar="1m", rth=False, tail=None, output_json=False):
         errors = attach_error_collector(ib)
         qc = qualify(ib, parse_contract(spec), output_json)
 
+        # 外汇/指数/CFD 没有成交价(TRADES)，必须用 MIDPOINT
+        what = "MIDPOINT" if qc.secType in ("CASH", "IND", "CFD") else "TRADES"
         bars = ib.reqHistoricalData(qc, endDateTime="", durationStr="1 D",
-                                    barSizeSetting=bar_size, whatToShow="TRADES",
+                                    barSizeSetting=bar_size, whatToShow=what,
                                     useRTH=rth, formatDate=1)
         if not bars:
             msg = f"未取到 {spec} 的分时数据"
@@ -60,8 +62,7 @@ def get_intraday(spec, bar="1m", rth=False, tail=None, output_json=False):
         safe_disconnect(ib)
 
 
-def _f(v):
-    return "—" if v is None else v
+from common import dash as _f  # 统一的 None->— 占位
 
 
 def _print_text(result):

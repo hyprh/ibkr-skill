@@ -2,7 +2,7 @@
 """
 历史/已完成订单（reqCompletedOrders）
 
-功能：列出已完成的订单（成交/撤销/失效），含成交均价与状态。
+功能：列出已完成的订单（成交/撤销/失效）：合约、方向、数量、已成交量、状态。
 用法：
     python get_history_orders.py
     python get_history_orders.py --acc-id DUN512173
@@ -11,6 +11,7 @@
 说明：
 - reqCompletedOrders 返回当日及近期已完成订单（更早的需对账单/Flex Query）。
 - --status 可过滤，如 Filled / Cancelled / ApiCancelled / Inactive。
+- 成交均价与成交时间不随该接口返回（orderStatus 为精简版），需用 get_executions.py 查询。
 """
 import argparse
 import sys
@@ -34,22 +35,21 @@ def get_history_orders(acc_id=None, status_filter=None, output_json=False):
         rows = []
         for t in (trades or []):
             o, c, st = t.order, t.contract, t.orderStatus
-            if account and o.account and o.account != account:
+            # 空账户行在指定 --acc-id 时也要排除（fail-safe）
+            if account and o.account != account:
                 continue
             if status_filter and st.status.lower() != status_filter.lower():
                 continue
-            # 完成时间取自最后一条 log
-            when = str(t.log[-1].time) if t.log else ""
+            # 注意：reqCompletedOrders 的 Trade 不带 fills/log，orderStatus 仅有 status；
+            # 成交数量取自 order.filledQuantity；成交均价/成交时间不随该接口返回，需用 get_executions.py。
             rows.append({
-                "time": when,
                 "account": o.account,
                 "perm_id": o.permId,
                 "contract": contract_repr(c),
                 "action": o.action,
                 "order_type": o.orderType,
                 "quantity": _num(o.totalQuantity),
-                "filled": _num(st.filled),
-                "avg_fill_price": _num(st.avgFillPrice) or None,
+                "filled": _num(getattr(o, "filledQuantity", None)),
                 "status": st.status,
             })
         result = {"account": account or "全部", "count": len(rows), "orders": rows}
@@ -69,9 +69,11 @@ def _print_text(result):
     if not result["orders"]:
         print("  （无已完成订单）")
     for o in result["orders"]:
-        print(f"\n  {o['time']}  [{o['status']}]  {o['contract']}")
+        print(f"\n  [{o['status']}]  {o['contract']}  ({o['account']})")
         print(f"    {o['action']} {o['quantity']} @ {o['order_type']}  已成交 {o['filled']}"
-              f"  均价 {o.get('avg_fill_price')}  permId {o['perm_id']}")
+              f"  permId {o['perm_id']}")
+    if result["orders"]:
+        print("\n  注：成交均价/成交时间不随历史订单接口返回，请用 get_executions.py 查询。")
     print("=" * 80)
 
 

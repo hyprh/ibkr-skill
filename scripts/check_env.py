@@ -7,11 +7,10 @@
     python check_env.py --json
 """
 import argparse
-import json
 import sys
 import os as _os
 sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))
-from common import connect, safe_disconnect, get_config, is_live_account
+from common import connect, safe_disconnect, get_config, is_live_account, json_dumps
 
 
 def check_env(output_json=False):
@@ -43,7 +42,7 @@ def check_env(output_json=False):
         safe_disconnect(ib)
 
     if output_json:
-        print(json.dumps(info, ensure_ascii=False))
+        print(json_dumps(info))
     else:
         print("=" * 56)
         print("IBKR 环境自检")

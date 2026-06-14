@@ -75,8 +75,7 @@ def get_pnl(acc_id=None, positions=False, output_json=False):
         safe_disconnect(ib)
 
 
-def _f(v):
-    return "—" if v is None else v
+from common import dash as _f  # 统一的 None->— 占位
 
 
 def _print_text(result):

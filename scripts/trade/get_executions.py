@@ -30,7 +30,7 @@ def get_executions(acc_id=None, output_json=False):
         records = []
         for f in ib.fills():
             ex, c = f.execution, f.contract
-            if account and ex.acctNumber and ex.acctNumber != account:
+            if account and ex.acctNumber != account:
                 continue
             cr = f.commissionReport
             records.append({
@@ -69,7 +69,7 @@ def _print_text(result):
 
 if __name__ == "__main__":
     p = argparse.ArgumentParser(description="查询成交记录")
-    p.add_argument("--acc-id", default=None, help="账户 ID（默认首个账户）")
+    p.add_argument("--acc-id", default=None, help="账户 ID（多账户时若未指定且有多个账户会报错）")
     p.add_argument("--json", action="store_true", dest="output_json", help="输出 JSON 格式")
     args = p.parse_args()
     get_executions(args.acc_id, args.output_json)

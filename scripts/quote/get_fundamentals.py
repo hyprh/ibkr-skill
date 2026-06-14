@@ -67,10 +67,19 @@ def _parse_snapshot(xml):
         for k in ("MKTCAP", "TTMPR2REV", "PEEXCLXOR", "PRICE2BK", "TTMDIVSHR"):
             if k in ratios:
                 out[k] = ratios[k]
-        # 业务简介
-        desc = root.find(".//Business")
-        if desc is not None and desc.text:
-            out["business"] = desc.text.strip()[:400]
+        # 业务简介：ReportSnapshot 里在 <TextInfo><Text Type="Business Summary">
+        biz = None
+        for txt in root.findall(".//TextInfo/Text"):
+            if (txt.get("Type") or "").lower() == "business summary" and txt.text:
+                biz = txt.text
+                break
+        if biz is None:  # 回退：第一个非空 Text
+            for txt in root.findall(".//Text"):
+                if txt.text and txt.text.strip():
+                    biz = txt.text
+                    break
+        if biz:
+            out["business"] = biz.strip()[:400]
     except Exception:
         pass
     return out

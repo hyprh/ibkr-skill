@@ -54,18 +54,20 @@ def cancel_order(order_id=None, cancel_all=False, all_accounts=False,
                       output_json)
             scope = targets[0].order.account
 
-        # 实盘安全门：任一目标属于实盘环境则要求 --confirmed
+        # 安全门：任一目标属于实盘环境，或 --all-accounts（杀伤面跨所有账户），都要求 --confirmed
         any_live = any(is_live_env(t.order.account) for t in targets)
-        if any_live and not confirmed:
+        if (any_live or all_accounts) and not confirmed:
+            why = "实盘" if any_live else "跨所有账户"
             detail = [f"范围: {scope}", f"将撤销 {len(targets)} 笔挂单："] + \
                      [f"  - #{t.order.orderId} {contract_repr(t.contract)} {t.order.action} {t.order.totalQuantity}"
                       for t in targets[:20]]
             if output_json:
                 print(json_dumps({"action": "cancel_order_preview", "scope": scope,
-                                  "env": "live", "count": len(targets), "details": detail,
-                                  "message": "⚠️ 实盘撤单需确认，加 --confirmed 重新执行。"}))
+                                  "env": "live" if any_live else "paper", "count": len(targets),
+                                  "details": detail,
+                                  "message": f"⚠️ {why}撤单需确认，加 --confirmed 重新执行。"}))
             else:
-                print("=" * 56); print(f"⚠️ 实盘撤单预览（未执行）—— 范围 {scope}"); print("=" * 56)
+                print("=" * 56); print(f"⚠️ {why}撤单预览（未执行）—— 范围 {scope}"); print("=" * 56)
                 for line in detail:
                     print(f"  {line}")
                 print("=" * 56); print("请确认后加 --confirmed 重新执行。")
@@ -107,6 +109,9 @@ def cancel_order(order_id=None, cancel_all=False, all_accounts=False,
     except SystemExit:
         raise
     except Exception as e:
+        # 撤单可能已发出后才抛错，必须留下审计记录
+        audit_log({"action": "cancel_order", "result": "error",
+                   "order_id": order_id, "all": cancel_all, "error": str(e)})
         _fail(str(e), output_json)
     finally:
         safe_disconnect(ib)

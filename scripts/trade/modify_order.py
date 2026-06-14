@@ -46,7 +46,9 @@ def modify_order(order_id, price=None, quantity=None, aux_price=None,
 
         my_cid = ib.client.clientId
         candidates = [t for t in ib.openTrades() if t.order.orderId == order_id]
-        target = next((t for t in candidates if t.order.clientId in (my_cid, 0)), None)
+        # 只改本连接 clientId 下的单：clientId==0(手工/主连接)等其它来源都拒绝，
+        # 否则同 orderId 重发会被 IBKR 当成新订单误下。
+        target = next((t for t in candidates if t.order.clientId == my_cid), None)
         if target is None:
             if candidates:
                 other = candidates[0].order.clientId
@@ -118,6 +120,9 @@ def modify_order(order_id, price=None, quantity=None, aux_price=None,
     except SystemExit:
         raise
     except Exception as e:
+        # 改单可能已到达券商后才抛错，必须留下审计记录
+        audit_log({"action": "modify_order", "result": "error", "order_id": order_id,
+                   "price": price, "aux_price": aux_price, "quantity": quantity, "error": str(e)})
         _fail(str(e), output_json)
     finally:
         safe_disconnect(ib)

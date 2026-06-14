@@ -27,14 +27,15 @@ def get_all_portfolios(output_json=False):
         ib = connect(readonly=True)
         accounts = [a for a in ib.managedAccounts() if a]
 
-        # 资金：accountSummary() 无参返回所有账户
-        funds = {a: {} for a in accounts}
+        # 资金：accountSummary() 无参返回所有账户（不预先限制为 managedAccounts）
+        funds = {}
         for v in ib.accountSummary():
-            if v.account in funds and v.tag in _FUND_TAGS and v.tag not in funds[v.account]:
-                funds[v.account][v.tag] = {"value": _num(v.value), "currency": v.currency}
+            if v.tag in _FUND_TAGS:
+                funds.setdefault(v.account, {})
+                funds[v.account].setdefault(v.tag, {"value": _num(v.value), "currency": v.currency})
 
         # 持仓：positions() 无参返回所有账户
-        pos_by_acc = {a: [] for a in accounts}
+        pos_by_acc = {}
         for p in ib.positions():
             acc = p.account
             pos_by_acc.setdefault(acc, [])
@@ -45,15 +46,17 @@ def get_all_portfolios(output_json=False):
                 "avgCost": _num(p.avgCost),
             })
 
+        # 账户集合 = managedAccounts ∪ 持仓/资金里出现的账户（FA 子账户可能不在 managedAccounts）
+        all_accts = list(dict.fromkeys(accounts + list(funds.keys()) + list(pos_by_acc.keys())))
         out = []
-        for a in accounts:
+        for a in all_accts:
             out.append({
                 "account": a,
                 "type": "live" if is_live_account(a) else "paper",
                 "funds": funds.get(a, {}),
                 "positions": pos_by_acc.get(a, []),
             })
-        result = {"account_count": len(accounts), "accounts": out}
+        result = {"account_count": len(all_accts), "accounts": out}
         print_result(result, output_json, _print_text)
     except SystemExit:
         raise
@@ -63,8 +66,7 @@ def get_all_portfolios(output_json=False):
         safe_disconnect(ib)
 
 
-def _f(v):
-    return "—" if v is None else v
+from common import dash as _f  # 统一的 None->— 占位
 
 
 def _print_text(result):

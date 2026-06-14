@@ -28,10 +28,10 @@ from common import (
 
 def stream_quote(specs, duration=30, interval=2.0, mdt=None, output_json=False):
     ib = None
+    tickers = []
     try:
         ib = connect(readonly=True, market_data_type=mdt)
-        attach_error_collector(ib)
-        tickers = []
+        errors = attach_error_collector(ib)
         for s in specs:
             qc = qualify(ib, parse_contract(s), output_json)
             tickers.append((s, qc, ib.reqMktData(qc, "", False, False)))
@@ -50,11 +50,9 @@ def stream_quote(specs, duration=30, interval=2.0, mdt=None, output_json=False):
                     print(json_dumps(row))
                 else:
                     print(f"  {ts}  {qc.symbol:<8} 最新 {row['last']}  买 {row['bid']}  卖 {row['ask']}")
-        for s, qc, t in tickers:
-            try:
-                ib.cancelMktData(qc)
-            except Exception:
-                pass
+        # 收到非信息性错误时，文本模式末尾给出提示（NDJSON 模式不污染流）
+        if errors and not output_json:
+            print("  [提示] " + "; ".join(e.get("hint") or e["msg"] for e in errors))
     except KeyboardInterrupt:
         pass
     except SystemExit:
@@ -62,6 +60,12 @@ def stream_quote(specs, duration=30, interval=2.0, mdt=None, output_json=False):
     except Exception as e:
         _fail(str(e), output_json)
     finally:
+        # 取消订阅放进 finally，确保异常/Ctrl+C 路径也清理
+        for _s, qc, _t in tickers:
+            try:
+                ib.cancelMktData(qc)
+            except Exception:
+                pass
         safe_disconnect(ib)
 
 

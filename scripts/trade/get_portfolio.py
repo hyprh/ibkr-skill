@@ -33,8 +33,7 @@ _CASH_TAGS = {
 }
 
 
-def _fmt(v):
-    return "—" if v is None else v
+from common import dash as _fmt  # 统一的 None->— 占位
 
 
 def get_portfolio(acc_id=None, output_json=False):
