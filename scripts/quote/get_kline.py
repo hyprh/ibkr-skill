@@ -47,8 +47,16 @@ _DEFAULT_DURATION = {
 }
 
 
+def _fmt_end(end):
+    """'2022-12-31' -> '20221231 23:59:59 US/Eastern';空则返回 ''(=当前)。"""
+    if not end:
+        return ""
+    d = str(end).replace("-", "").strip()
+    return f"{d} 23:59:59 US/Eastern"
+
+
 def get_kline(spec, bar="1d", duration=None, num=None, what="TRADES",
-              rth=False, output_json=False):
+              rth=False, end="", output_json=False):
     ib = None
     try:
         bar_size = _BAR_MAP.get(bar)
@@ -62,7 +70,7 @@ def get_kline(spec, bar="1d", duration=None, num=None, what="TRADES",
         qc = qualify(ib, contract, output_json)
 
         bars = ib.reqHistoricalData(
-            qc, endDateTime="", durationStr=dur, barSizeSetting=bar_size,
+            qc, endDateTime=_fmt_end(end), durationStr=dur, barSizeSetting=bar_size,
             whatToShow=what.upper(), useRTH=rth, formatDate=1,
         )
         if not bars:
@@ -120,6 +128,8 @@ if __name__ == "__main__":
     p.add_argument("--num", type=int, default=30, help="只保留最近 N 根（默认 30）")
     p.add_argument("--what", default="TRADES", help="TRADES / MIDPOINT / BID / ASK")
     p.add_argument("--rth", action="store_true", help="仅常规交易时段")
+    p.add_argument("--end", default="", help="历史窗口截止日 YYYY-MM-DD（默认当前；配合 --duration 往回取）")
     p.add_argument("--json", action="store_true", dest="output_json", help="输出 JSON 格式")
     args = p.parse_args()
-    get_kline(args.spec, args.bar, args.duration, args.num, args.what, args.rth, args.output_json)
+    get_kline(args.spec, args.bar, args.duration, args.num, args.what, args.rth,
+              args.end, args.output_json)
