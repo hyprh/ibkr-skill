@@ -255,6 +255,13 @@ def place_bracket(code, side, quantity, limit, stop, target, tif="GTC",
 
         entry_fill_price, commission = _extract_fill(entry_trade)
 
+        # 【critical】校验两条保护腿(之前从不检查→保护腿被实盘特有规则单独拒,会被误当"已保护")
+        ib.waitOnUpdate(timeout=1.0)   # 给 OCA 子腿在交易所侧激活/收敛留点时间
+        stop_status = stop_trade.orderStatus.status
+        target_status = target_trade.orderStatus.status
+        _bad = REJECTED_STATUSES | {"Inactive", "ApiCancelled", "Cancelled"}
+        protected = (stop_status not in _bad) and (target_status not in _bad)
+
         result = {
             "entry_order_id": entry_order_id,
             "stop_order_id": stop_order_id,
@@ -262,6 +269,9 @@ def place_bracket(code, side, quantity, limit, stop, target, tif="GTC",
             "entry_fill_price": entry_fill_price,
             "commission": commission,
             "status": status or "unknown",
+            "stop_status": stop_status,
+            "target_status": target_status,
+            "protected": protected,   # 两条保护腿都未被拒才 True;False=持仓未受完整保护
         }
         audit_log({"action": "place_bracket", **summary, **result})
 
